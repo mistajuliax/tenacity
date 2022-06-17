@@ -43,7 +43,7 @@ class file_to_object_s(Task.Task):
 
 	def run(self):
 		name = []
-		for i, x in enumerate(self.inputs[0].name):
+		for x in self.inputs[0].name:
 			if x.isalnum():
 				name.append(x)
 			else:
@@ -63,13 +63,13 @@ class file_to_object_s(Task.Task):
 		name = "_binary_" + "".join(name)
 		rodata = ".section .rodata"
 		if self.env.DEST_BINFMT == "mac-o":
-			name = "_" + name
+			name = f"_{name}"
 			rodata = ".section __TEXT,__const"
 
-		with open(self.outputs[0].abspath(), 'w') as f:
-			f.write(\
-"""
-	.global %(name)s_start
+			with open(self.outputs[0].abspath(), 'w') as f:
+				f.write(\
+		"""
+.global %(name)s_start
 	.global %(name)s_end
 	.global %(name)s_size
 	%(rodata)s
@@ -121,13 +121,12 @@ def tg_file_to_object(self):
 	targets = []
 	for src in sources:
 		if bld.env.F2O_METHOD == ["asm"]:
-			tgt = src.parent.find_or_declare(src.name + '.f2o.s')
+			tgt = src.parent.find_or_declare(f'{src.name}.f2o.s')
 			tsk = self.create_task('file_to_object_s', src, tgt)
-			tsk.cwd = src.parent.abspath() # verify
 		else:
-			tgt = src.parent.find_or_declare(src.name + '.f2o.c')
+			tgt = src.parent.find_or_declare(f'{src.name}.f2o.c')
 			tsk = self.create_task('file_to_object_c', src, tgt)
-			tsk.cwd = src.parent.abspath() # verify
+		tsk.cwd = src.parent.abspath() # verify
 		targets.append(tgt)
 	self.source = targets
 

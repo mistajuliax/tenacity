@@ -18,13 +18,12 @@ def count_enclosed_functions (source):
 			return -1
 	return func_count
 
-def find_function_prototype (source, proto_name):
+def find_function_prototype(source, proto_name):
 	proto_re = "(^[a-zA-Z_ \t]+\s+%s[^a-zA-Z0-9_]\s*\([^\)]+\)\s+;\n)" % (proto_name)
 	proto_result = re.search (proto_re, source, re.MULTILINE | re.DOTALL)
 	if not proto_result:
 		return None
-	proto_text = proto_result.groups ()[0]
-	return proto_text
+	return proto_result.groups ()[0]
 
 def find_function_definition (source, func_name):
 	func_re = "(\n[a-zA-Z_ \t]+\n%s[^a-zA-Z0-9_].* /\* %s \*/\n)" % (func_name, func_name)
@@ -40,21 +39,19 @@ def find_function_definition (source, func_name):
 		return None
 	return func_text
 
-def find_include (source, inc_name):
+def find_include(source, inc_name):
 	inc_re = "(^#include\s+[\<\"]%s[\"\>]\s*)" % inc_name
 	inc_result = re.search (inc_re, source, re.MULTILINE | re.DOTALL)
 	if not inc_result:
 		return None
-	inc_text = inc_result.groups ()[0]
-	return inc_text
+	return inc_result.groups ()[0]
 
-def find_assign_statement (source, var_name):
+def find_assign_statement(source, var_name):
 	var_re = "(^\s+%s\s*=[^;]+;)" % var_name
 	var_result = re.search (var_re, source, re.MULTILINE | re.DOTALL)
 	if not var_result:
 		return None
-	assign_text = var_result.groups ()[0]
-	return assign_text
+	return var_result.groups ()[0]
 
 #--------------------------------------------------------------------------------
 
@@ -180,29 +177,26 @@ def remove_regex_from_file (filename, regex_list):
 
 #==========================================================================
 
-def find_configure_version (filename):
-	# AM_INIT_AUTOMAKE(libsndfile,0.0.21pre6)
-	file = open (filename)
-	while 1:
-		line = file.readline ()
-		if re.search ("AC_INIT", line):
-			x = re.sub ("[^\(]+\(", "", line)
-			x = re.sub ("\).*\n", "", x)
-			x = string.split (x, ",")
-			package = x [0]
-			version = x [1]
-			break
-	file.close ()
+def find_configure_version(filename):
+	with open (filename) as file:
+		while 1:
+			line = file.readline ()
+			if re.search ("AC_INIT", line):
+				x = re.sub ("[^\(]+\(", "", line)
+				x = re.sub ("\).*\n", "", x)
+				x = string.split (x, ",")
+				package = x [0]
+				version = x [1]
+				break
 	# version = re.escape (version)
 	return package, version
 
-def fix_configure_ac_file (filename):
+def fix_configure_ac_file(filename):
 	data = open (filename, 'r').read ()
 	data = string.replace (data, "AM_INIT_AUTOMAKE(libsndfile,", "AM_INIT_AUTOMAKE(libsndfile_lite,", 1)
 
-	file = open (filename, 'w')
-	file.write (data)
-	file.close ()
+	with open (filename, 'w') as file:
+		file.write (data)
 
 
 def make_dist_file (package, version):

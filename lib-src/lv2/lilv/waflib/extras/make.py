@@ -48,10 +48,7 @@ class MakeContext(BuildContext):
 			for pat in self.files.split(','):
 				matcher = self.get_matcher(pat)
 				for tg in g:
-					if isinstance(tg, Task.Task):
-						lst = [tg]
-					else:
-						lst = tg.tasks
+					lst = [tg] if isinstance(tg, Task.Task) else tg.tasks
 					for tsk in lst:
 						all_tasks.append(tsk)
 
@@ -134,9 +131,6 @@ class MakeContext(BuildContext):
 			if not output and not inn:
 				return False
 
-			if anode:
-				return anode == node
-			else:
-				return pattern.match(node.abspath())
+			return anode == node if anode else pattern.match(node.abspath())
 		return match
 

@@ -24,6 +24,7 @@ It only works with gcc >= 4.4 though.
 
 A dumb preprocessor is also available in the tool *c_dumbpreproc*
 """
+
 # TODO: more varargs, pragma once
 
 import re, string, traceback
@@ -90,7 +91,7 @@ re_nl = re.compile('\\\\\r*\n', re.MULTILINE)
 re_cpp = re.compile(r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"', re.DOTALL | re.MULTILINE )
 """Filter C/C++ comments"""
 
-trig_def = [('??'+a, b) for a, b in zip("=-/!'()<>", r'#~\|^[]{}')]
+trig_def = [(f'??{a}', b) for a, b in zip("=-/!'()<>", r'#~\|^[]{}')]
 """Trigraph definitions"""
 
 chr_esc = {'0':0, 'a':7, 'b':8, 't':9, 'n':10, 'f':11, 'v':12, 'r':13, '\\':92, "'":39}
@@ -122,7 +123,11 @@ exp_types = [
 ]
 """Expression types"""
 
-re_clexer = re.compile('|'.join(["(?P<%s>%s)" % (name, part) for name, part in zip(tok_types, exp_types)]), re.M)
+re_clexer = re.compile(
+    '|'.join(
+        [f"(?P<{name}>{part})" for name, part in zip(tok_types, exp_types)]),
+    re.M,
+)
 """Match expressions into tokens"""
 
 accepted  = 'a'
@@ -181,46 +186,45 @@ def reduce_nums(val_1, val_2, val_op):
 
 	d = val_op
 	if d == '%':
-		c = a % b
+		return a % b
 	elif d=='+':
-		c = a + b
+		return a + b
 	elif d=='-':
-		c = a - b
+		return a - b
 	elif d=='*':
-		c = a * b
+		return a * b
 	elif d=='/':
-		c = a / b
+		return a / b
 	elif d=='^':
-		c = a ^ b
+		return a ^ b
 	elif d=='==':
-		c = int(a == b)
-	elif d=='|'  or d == 'bitor':
-		c = a | b
-	elif d=='||' or d == 'or' :
-		c = int(a or b)
-	elif d=='&'  or d == 'bitand':
-		c = a & b
-	elif d=='&&' or d == 'and':
-		c = int(a and b)
-	elif d=='!=' or d == 'not_eq':
-		c = int(a != b)
-	elif d=='^'  or d == 'xor':
-		c = int(a^b)
+		return int(a == b)
+	elif d in ['|', 'bitor']:
+		return a | b
+	elif d in ['||', 'or']:
+		return int(a or b)
+	elif d in ['&', 'bitand']:
+		return a & b
+	elif d in ['&&', 'and']:
+		return int(a and b)
+	elif d in ['!=', 'not_eq']:
+		return int(a != b)
+	elif d == 'xor':
+		return int(a^b)
 	elif d=='<=':
-		c = int(a <= b)
+		return int(a <= b)
 	elif d=='<':
-		c = int(a < b)
+		return int(a < b)
 	elif d=='>':
-		c = int(a > b)
+		return int(a > b)
 	elif d=='>=':
-		c = int(a >= b)
+		return int(a >= b)
 	elif d=='<<':
-		c = a << b
+		return a << b
 	elif d=='>>':
-		c = a >> b
+		return a >> b
 	else:
-		c = 0
-	return c
+		return 0
 
 def get_num(lst):
 	"""
@@ -316,11 +320,7 @@ def get_term(lst):
 			else:
 				raise PreprocError('rparen expected %r' % lst)
 
-			if int(num):
-				return get_term(lst[1:i])
-			else:
-				return get_term(lst[i+1:])
-
+			return get_term(lst[1:i]) if int(num) else get_term(lst[i+1:])
 		else:
 			num2, lst = get_num(lst[1:])
 
@@ -384,7 +384,7 @@ def paste_tokens(t1, t2):
 	p1 = None
 	if t1[0] == OP and t2[0] == OP:
 		p1 = OP
-	elif t1[0] == IDENT and (t2[0] == IDENT or t2[0] == NUM):
+	elif t1[0] == IDENT and t2[0] in [IDENT, NUM]:
 		p1 = IDENT
 	elif t1[0] == NUM and t2[0] == NUM:
 		p1 = NUM

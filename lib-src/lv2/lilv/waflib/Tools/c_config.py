@@ -107,9 +107,9 @@ def parse_flags(self, line, uselib_store, env=None, force_static=False, posix=No
 	# for example, apple flags may require both -arch i386 and -arch ppc
 	uselib = uselib_store
 	def app(var, val):
-		env.append_value('%s_%s' % (var, uselib), val)
+		env.append_value(f'{var}_{uselib}', val)
 	def appu(var, val):
-		env.append_unique('%s_%s' % (var, uselib), val)
+		env.append_unique(f'{var}_{uselib}', val)
 	static = False
 	while lst:
 		x = lst.pop(0)
@@ -200,7 +200,7 @@ def validate_cfg(self, kw):
 	:param errmsg: message to display in case of error
 	:type errmsg: string
 	"""
-	if not 'path' in kw:
+	if 'path' not in kw:
 		if not self.env.PKGCONFIG:
 			self.find_program('pkg-config', var='PKGCONFIG')
 		kw['path'] = self.env.PKGCONFIG
@@ -209,7 +209,7 @@ def validate_cfg(self, kw):
 	s = ('atleast_pkgconfig_version' in kw) + ('modversion' in kw) + ('package' in kw)
 	if s != 1:
 		raise ValueError('exactly one of atleast_pkgconfig_version, modversion and package must be set')
-	if not 'msg' in kw:
+	if 'msg' not in kw:
 		if 'atleast_pkgconfig_version' in kw:
 			kw['msg'] = 'Checking for pkg-config version >= %r' % kw['atleast_pkgconfig_version']
 		elif 'modversion' in kw:
@@ -218,23 +218,23 @@ def validate_cfg(self, kw):
 			kw['msg'] = 'Checking for %r' %(kw['package'])
 
 	# let the modversion check set the okmsg to the detected version
-	if not 'okmsg' in kw and not 'modversion' in kw:
+	if 'okmsg' not in kw and 'modversion' not in kw:
 		kw['okmsg'] = 'yes'
-	if not 'errmsg' in kw:
+	if 'errmsg' not in kw:
 		kw['errmsg'] = 'not found'
 
 	# pkg-config version
 	if 'atleast_pkgconfig_version' in kw:
 		pass
 	elif 'modversion' in kw:
-		if not 'uselib_store' in kw:
+		if 'uselib_store' not in kw:
 			kw['uselib_store'] = kw['modversion']
-		if not 'define_name' in kw:
-			kw['define_name'] = '%s_VERSION' % Utils.quote_define_name(kw['uselib_store'])
+		if 'define_name' not in kw:
+			kw['define_name'] = f"{Utils.quote_define_name(kw['uselib_store'])}_VERSION"
 	else:
-		if not 'uselib_store' in kw:
+		if 'uselib_store' not in kw:
 			kw['uselib_store'] = Utils.to_list(kw['package'])[0].upper()
-		if not 'define_name' in kw:
+		if 'define_name' not in kw:
 			kw['define_name'] = self.have_define(kw['uselib_store'])
 
 @conf
@@ -275,7 +275,7 @@ def exec_cfg(self, kw):
 		if kw.get('global_define', 1):
 			self.define(define_name, 1, False)
 		else:
-			self.env.append_unique('DEFINES_%s' % kw['uselib_store'], "%s=1" % define_name)
+			self.env.append_unique(f"DEFINES_{kw['uselib_store']}", f"{define_name}=1")
 
 		if kw.get('add_have_to_env', 1):
 			self.env[define_name] = 1
@@ -362,7 +362,7 @@ def check_cfg(self, *k, **kw):
 		if 'errmsg' in kw:
 			self.end_msg(kw['errmsg'], 'YELLOW', **kw)
 		if Logs.verbose > 1:
-			self.to_log('Command failure: %s' % e)
+			self.to_log(f'Command failure: {e}')
 		self.fatal('The configuration failed')
 	else:
 		if not ret:
@@ -557,15 +557,11 @@ def post_check(self, *k, **kw):
 	:py:func:`waflib.Tools.c_config.check` was run successfully
 	"""
 	is_success = 0
-	if kw['execute']:
-		if kw['success'] is not None:
-			if kw.get('define_ret'):
-				is_success = kw['success']
-			else:
-				is_success = (kw['success'] == 0)
-	else:
+	if kw['execute'] and kw['success'] is not None and kw.get('define_ret'):
+		is_success = kw['success']
+	elif (kw['execute'] and kw['success'] is not None and not kw.get('define_ret')
+	      or not kw['execute']):
 		is_success = (kw['success'] == 0)
-
 	if kw.get('define_name'):
 		comment = kw.get('comment', '')
 		define_name = kw['define_name']
@@ -573,19 +569,15 @@ def post_check(self, *k, **kw):
 			if kw.get('global_define', 1):
 				self.define(define_name, is_success, quote=kw.get('quote', 1), comment=comment)
 			else:
-				if kw.get('quote', 1):
-					succ = '"%s"' % is_success
-				else:
-					succ = int(is_success)
-				val = '%s=%s' % (define_name, succ)
-				var = 'DEFINES_%s' % kw['uselib_store']
+				succ = '"%s"' % is_success if kw.get('quote', 1) else int(is_success)
+				val = f'{define_name}={succ}'
+				var = f"DEFINES_{kw['uselib_store']}"
 				self.env.append_value(var, val)
+		elif kw.get('global_define', 1):
+			self.define_cond(define_name, is_success, comment=comment)
 		else:
-			if kw.get('global_define', 1):
-				self.define_cond(define_name, is_success, comment=comment)
-			else:
-				var = 'DEFINES_%s' % kw['uselib_store']
-				self.env.append_value(var, '%s=%s' % (define_name, int(is_success)))
+			var = f"DEFINES_{kw['uselib_store']}"
+			self.env.append_value(var, f'{define_name}={int(is_success)}')
 
 		# define conf.env.HAVE_X to 1
 		if kw.get('add_have_to_env', 1):
@@ -596,9 +588,8 @@ def post_check(self, *k, **kw):
 			else:
 				self.env[define_name] = int(is_success)
 
-	if 'header_name' in kw:
-		if kw.get('auto_add_header_name'):
-			self.env.append_value(INCKEYS, Utils.to_list(kw['header_name']))
+	if 'header_name' in kw and kw.get('auto_add_header_name'):
+		self.env.append_value(INCKEYS, Utils.to_list(kw['header_name']))
 
 	if is_success and 'uselib_store' in kw:
 		from waflib.Tools import ccroot
@@ -611,7 +602,7 @@ def post_check(self, *k, **kw):
 		for k in _vars:
 			x = k.lower()
 			if x in kw:
-				self.env.append_value(k + '_' + kw['uselib_store'], kw[x])
+				self.env.append_value(f'{k}_' + kw['uselib_store'], kw[x])
 	return is_success
 
 @conf
@@ -752,13 +743,13 @@ def define(self, key, val, quote=True, comment=''):
 	elif val in (False, None):
 		val = 0
 
-	if isinstance(val, int) or isinstance(val, float):
+	if isinstance(val, (int, float)):
 		s = '%s=%s'
 	else:
-		s = quote and '%s="%s"' or '%s=%s'
+		s = '%s="%s"' if quote else '%s=%s'
 	app = s % (key, str(val))
 
-	ban = key + '='
+	ban = f'{key}='
 	lst = self.env.DEFINES
 	for x in lst:
 		if x.startswith(ban):
@@ -781,7 +772,7 @@ def undefine(self, key, comment=''):
 	assert isinstance(key, str)
 	if not key:
 		return
-	ban = key + '='
+	ban = f'{key}='
 	lst = [x for x in self.env.DEFINES if not x.startswith(ban)]
 	self.env.DEFINES = lst
 	self.env.append_unique(DEFKEYS, key)
@@ -823,11 +814,8 @@ def is_defined(self, key):
 	"""
 	assert key and isinstance(key, str)
 
-	ban = key + '='
-	for x in self.env.DEFINES:
-		if x.startswith(ban):
-			return True
-	return False
+	ban = f'{key}='
+	return any(x.startswith(ban) for x in self.env.DEFINES)
 
 @conf
 def get_define(self, key):
@@ -840,11 +828,9 @@ def get_define(self, key):
 	"""
 	assert key and isinstance(key, str)
 
-	ban = key + '='
-	for x in self.env.DEFINES:
-		if x.startswith(ban):
-			return x[len(ban):]
-	return None
+	ban = f'{key}='
+	return next((x[len(ban):] for x in self.env.DEFINES if x.startswith(ban)),
+	            None)
 
 @conf
 def have_define(self, key):
@@ -888,15 +874,17 @@ def write_config_header(self, configfile='', guard='', top=False, defines=True, 
 	"""
 	if not configfile:
 		configfile = WAF_CONFIG_H
-	waf_guard = guard or 'W_%s_WAF' % Utils.quote_define_name(configfile)
+	waf_guard = guard or f'W_{Utils.quote_define_name(configfile)}_WAF'
 
 	node = top and self.bldnode or self.path.get_bld()
 	node = node.make_node(configfile)
 	node.parent.mkdir()
 
-	lst = ['/* WARNING! All changes made to this file will be lost! */\n']
-	lst.append('#ifndef %s\n#define %s\n' % (waf_guard, waf_guard))
-	lst.append(self.get_config_header(defines, headers, define_prefix=define_prefix))
+	lst = [
+	    '/* WARNING! All changes made to this file will be lost! */\n',
+	    '#ifndef %s\n#define %s\n' % (waf_guard, waf_guard),
+	    self.get_config_header(defines, headers, define_prefix=define_prefix),
+	]
 	lst.append('\n#endif /* %s */\n' % waf_guard)
 
 	node.write('\n'.join(lst))
@@ -937,9 +925,7 @@ def get_config_header(self, defines=True, headers=False, define_prefix=''):
 		lst.append(self.env.WAF_CONFIG_H_PRELUDE)
 
 	if headers:
-		for x in self.env[INCKEYS]:
-			lst.append('#include <%s>' % x)
-
+		lst.extend(f'#include <{x}>' for x in self.env[INCKEYS])
 	if defines:
 		tbl = {}
 		for k in self.env.DEFINES:
@@ -949,11 +935,11 @@ def get_config_header(self, defines=True, headers=False, define_prefix=''):
 		for k in self.env[DEFKEYS]:
 			caption = self.get_define_comment(k)
 			if caption:
-				caption = ' /* %s */' % caption
+				caption = f' /* {caption} */'
 			try:
-				txt = '#define %s%s %s%s' % (define_prefix, k, tbl[k], caption)
+				txt = f'#define {define_prefix}{k} {tbl[k]}{caption}'
 			except KeyError:
-				txt = '/* #undef %s%s */%s' % (define_prefix, k, caption)
+				txt = f'/* #undef {define_prefix}{k} */{caption}'
 			lst.append(txt)
 	return "\n".join(lst)
 
@@ -1103,8 +1089,7 @@ def get_xlc_version(conf, cc):
 	# the intention is to catch the 8.0 in "IBM XL C/C++ Enterprise Edition V8.0 for AIX..."
 	for v in (r"IBM XL C/C\+\+.* V(?P<major>\d*)\.(?P<minor>\d*)",):
 		version_re = re.compile(v, re.I).search
-		match = version_re(out or err)
-		if match:
+		if match := version_re(out or err):
 			k = match.groupdict()
 			conf.env.CC_VERSION = (k['major'], k['minor'])
 			break
@@ -1135,8 +1120,7 @@ def get_suncc_version(conf, cc):
 	# cc: Studio 12.5 Sun C++ 5.14 SunOS_sparc Beta 2015/11/17
 	# cc: WorkShop Compilers 5.0 98/12/15 C 5.0
 	version_re = re.compile(r'cc: (studio.*?|\s+)?(sun\s+(c\+\+|c)|(WorkShop\s+Compilers))?\s+(?P<major>\d*)\.(?P<minor>\d*)', re.I).search
-	match = version_re(version)
-	if match:
+	if match := version_re(version):
 		k = match.groupdict()
 		conf.env.CC_VERSION = (k['major'], k['minor'])
 	else:
@@ -1169,10 +1153,8 @@ class cfgtask(Task.Task):
 		return ''
 
 	def runnable_status(self):
-		for x in self.run_after:
-			if not x.hasrun:
-				return Task.ASK_LATER
-		return Task.RUN_ME
+		return next((Task.ASK_LATER for x in self.run_after if not x.hasrun),
+		            Task.RUN_ME)
 
 	def uid(self):
 		return Utils.SIG_NIL
@@ -1342,7 +1324,7 @@ def check_gcc_o_space(self, mode='c'):
 		self.env.CCLNK_TGT_F = ['-o', '']
 	elif mode == 'cxx':
 		self.env.CXXLNK_TGT_F = ['-o', '']
-	features = '%s %sshlib' % (mode, mode)
+	features = f'{mode} {mode}shlib'
 	try:
 		self.check(msg='Checking if the -o link must be split from arguments', fragment=SNIP_EMPTY_PROGRAM, features=features)
 	except self.errors.ConfigurationError:

@@ -83,11 +83,8 @@ def check_invalid_constraints(self):
 	for (x, y) in TaskGen.task_gen.prec.items():
 		feat.add(x)
 		feat.union(set(y))
-	ext = set()
-	for x in TaskGen.task_gen.mappings.values():
-		ext.add(x.__name__)
-	invalid = ext & feat
-	if invalid:
+	ext = {x.__name__ for x in TaskGen.task_gen.mappings.values()}
+	if invalid := ext & feat:
 		Logs.error('The methods %r have invalid annotations:  @extension <-> @feature/@before_method/@after_method', list(invalid))
 
 	# the build scripts have been read, so we can check for invalid after/before attributes on task classes
@@ -111,9 +108,8 @@ def replace(m):
 	def call(self, *k, **kw):
 		ret = oldcall(self, *k, **kw)
 		for x in typos:
-			if x in kw:
-				if x == 'iscopy' and 'subst' in getattr(self, 'features', ''):
-					continue
+			if x in kw and (x != 'iscopy'
+			                or 'subst' not in getattr(self, 'features', '')):
 				Logs.error('Fix the typo %r -> %r on %r', x, typos[x], ret)
 		return ret
 	setattr(Build.BuildContext, m, call)
@@ -168,13 +164,14 @@ def enhance_lib():
 		if 'shlib' in lst:
 			Logs.error('feature shlib -> cshlib, dshlib or cxxshlib')
 		for x in ('c', 'cxx', 'd', 'fc'):
-			if not x in lst and lst and lst[0] in [x+y for y in ('program', 'shlib', 'stlib')]:
+			if (x not in lst and lst
+			    and lst[0] in [x + y for y in ('program', 'shlib', 'stlib')]):
 				Logs.error('%r features is probably missing %r', self, x)
 	TaskGen.feature('*')(check_err_features)
 
 	# check for erroneous order constraints
 	def check_err_order(self):
-		if not hasattr(self, 'rule') and not 'subst' in Utils.to_list(self.features):
+		if not hasattr(self, 'rule') and 'subst' not in Utils.to_list(self.features):
 			for x in ('before', 'after', 'ext_in', 'ext_out'):
 				if hasattr(self, x):
 					Logs.warn('Erroneous order constraint %r on non-rule based task generator %r', x, self)
@@ -218,7 +215,7 @@ def enhance_lib():
 
 	# check for env.append
 	def _getattr(self, name, default=None):
-		if name == 'append' or name == 'add':
+		if name in ['append', 'add']:
 			raise Errors.WafError('env.append and env.add do not exist: use env.append_value/env.append_unique')
 		elif name == 'prepend':
 			raise Errors.WafError('env.prepend does not exist: use env.prepend_value')

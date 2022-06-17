@@ -86,11 +86,12 @@ def get_release_json(title, entry):
 
     version = entry["revision"]
     desc = {
-        "name": "%s %s" % (title, version),
-        "tag_name": "v%s" % version,
+        "name": f"{title} {version}",
+        "tag_name": f"v{version}",
         "description": get_items_markdown(entry["items"]),
         "released_at": entry["date"].isoformat(),
     }
+
 
     return json.dumps(desc)
 
@@ -175,7 +176,7 @@ def write_text_news(entries, news):
     revisions = sorted(entries.keys(), reverse=True)
     for r in revisions:
         e = entries[r]
-        summary = "%s (%s) %s" % (e["name"], e["revision"], e["status"])
+        summary = f'{e["name"]} ({e["revision"]}) {e["status"]}'
         news.write("\n" if r != revisions[0] else "")
         news.write("%s;\n" % summary)
 
@@ -184,7 +185,7 @@ def write_text_news(entries, news):
             news.write("\n  * " + "\n    ".join(wrapped))
 
         email = e["blamee_mbox"].replace("mailto:", "")
-        author = "%s <%s>" % (e["blamee_name"], email)
+        author = f'{e["blamee_name"]} <{email}>'
         date = e["date"].strftime("%a, %d %b %Y %H:%M:%S %z")
         news.write("\n\n -- %s  %s\n" % (author, date))
 
@@ -225,7 +226,7 @@ def read_ttl_news(name, in_files, top_entries=None, dist_pattern=None):
             if dist_pattern is not None:
                 dist = dist_pattern % semver
             else:
-                warn("No file release for %s %s" % (proj, revision))
+                warn(f"No file release for {proj} {revision}")
 
         if revision and date and blamee and changeset:
             status = "stable" if is_release_version(revision) else "unstable"
@@ -247,14 +248,14 @@ def read_ttl_news(name, in_files, top_entries=None, dist_pattern=None):
                 if dist and top_entries is not None:
                     if dist not in top_entries:
                         top_entries[dist] = {"items": []}
-                    top_entries[dist]["items"] += ["%s: %s" % (name, item)]
+                    top_entries[dist]["items"] += [f"{name}: {item}"]
 
             e["blamee_name"] = str(g.value(blamee, foaf.name, None))
             e["blamee_mbox"] = str(g.value(blamee, foaf.mbox, None))
 
             entries[semver] = e
         else:
-            warn("Ignored incomplete %s release description" % name)
+            warn(f"Ignored incomplete {name} release description")
 
     return entries
 
@@ -296,7 +297,7 @@ def write_ttl_news(entries, out_file, template=None, subject_uri=None):
         semver = parse_version(e["revision"])
         ver_string = "%03d%03d%03d" % semver
 
-        release = rdflib.BNode("r%s" % ver_string)
+        release = rdflib.BNode(f"r{ver_string}")
         g.add((subject, doap.release, release))
         g.add((release, doap.revision, rdflib.Literal(e["revision"])))
 
@@ -311,7 +312,7 @@ def write_ttl_news(entries, out_file, template=None, subject_uri=None):
         if maintainer is not None:
             g.add((release, dcs.blame, maintainer))
 
-        changeset = rdflib.BNode("c%s" % ver_string)
+        changeset = rdflib.BNode(f"c{ver_string}")
         g.add((release, dcs.changeset, changeset))
         for index, item in enumerate(e["items"]):
             item_node = rdflib.BNode("i%s%08d" % (ver_string, index))
@@ -399,7 +400,7 @@ def write_posts(entries, out_dir, meta={}):
     """Write news posts in Pelican Markdown format"""
     import datetime
 
-    report("Writing posts to %s" % out_dir)
+    report(f"Writing posts to {out_dir}")
 
     info = get_project_info()
     description = get_blurb("README.md")
@@ -416,17 +417,17 @@ def write_posts(entries, out_dir, meta={}):
         name = e["name"]
         revision = e["revision"]
         if "dist" not in e:
-            warn("No file release for %s %s" % (name, revision))
+            warn(f"No file release for {name} {revision}")
             continue
 
         date = e["date"].astimezone(datetime.timezone.utc)
         date_str = date.strftime("%Y-%m-%d")
         datetime_str = date.strftime("%Y-%m-%d %H:%M")
         slug_version = revision.replace(".", "-")
-        filename = "%s-%s-%s.md" % (date_str, name, slug_version)
+        filename = f"{date_str}-{name}-{slug_version}.md"
 
         with open(os.path.join(out_dir, filename), "w") as post:
-            slug = "%s-%s" % (name, slug_version)
+            slug = f"{name}-{slug_version}"
             post.write("Title: %s %s\n" % (title, revision))
             post.write("Date: %s\n" % datetime_str)
             post.write("Slug: %s\n" % slug)
@@ -434,9 +435,9 @@ def write_posts(entries, out_dir, meta={}):
                 post.write("%s: %s\n" % (k, meta[k]))
 
             url = e["dist"]
-            link = "[%s %s](%s)" % (title, revision, url)
+            link = f"[{title} {revision}]({url})"
             post.write("\n%s has been released." % link)
-            post.write("  " + description + "\n")
+            post.write(f"  {description}" + "\n")
 
             if e["items"] != ["Initial release"]:
                 post.write("\nChanges:\n\n")
@@ -628,7 +629,7 @@ if __name__ == "__main__":
 
     # Get list of command names from handler functions for help text
     global_names = list(globals().keys())
-    handlers = [k[0:-8] for k in global_names if k.endswith("_command")]
+    handlers = [k[:-8] for k in global_names if k.endswith("_command")]
 
     # Run simple top level argument parser to get command name
     ap = argparse.ArgumentParser(
@@ -639,7 +640,7 @@ if __name__ == "__main__":
     args = ap.parse_args(sys.argv[1:2])
 
     # Check that a handler is defined for the given command
-    function_name = args.command + "_command"
+    function_name = f"{args.command}_command"
     if function_name not in globals():
         sys.stderr.write("error: Unknown command '%s'\n" % args.command)
         ap.print_help()

@@ -105,32 +105,29 @@ class store_task_type(type):
 
 	The attribute 'run_str' is compiled into a method 'run' bound to the task class.
 	"""
-	def __init__(cls, name, bases, dict):
-		super(store_task_type, cls).__init__(name, bases, dict)
-		name = cls.__name__
+	def __init__(self, name, bases, dict):
+		super(store_task_type, self).__init__(name, bases, dict)
+		name = self.__name__
 
-		if name != 'evil' and name != 'Task':
-			if getattr(cls, 'run_str', None):
+		if name not in ['evil', 'Task']:
+			if getattr(self, 'run_str', None):
 				# if a string is provided, convert it to a method
-				(f, dvars) = compile_fun(cls.run_str, cls.shell)
-				cls.hcode = Utils.h_cmd(cls.run_str)
-				cls.orig_run_str = cls.run_str
+				(f, dvars) = compile_fun(self.run_str, self.shell)
+				self.hcode = Utils.h_cmd(self.run_str)
+				self.orig_run_str = self.run_str
 				# change the name of run_str or it is impossible to subclass with a function
-				cls.run_str = None
-				cls.run = f
-				# process variables
-				cls.vars = list(set(cls.vars + dvars))
-				cls.vars.sort()
-				if cls.vars:
-					fun = compile_sig_vars(cls.vars)
-					if fun:
-						cls.sig_vars = fun
-			elif getattr(cls, 'run', None) and not 'hcode' in cls.__dict__:
+				self.run_str = None
+				self.run = f
+				self.vars = sorted(set(self.vars + dvars))
+				if self.vars:
+					if fun := compile_sig_vars(self.vars):
+						self.sig_vars = fun
+			elif getattr(self, 'run', None) and 'hcode' not in self.__dict__:
 				# getattr(cls, 'hcode') would look in the upper classes
-				cls.hcode = Utils.h_cmd(cls.run)
+				self.hcode = Utils.h_cmd(self.run)
 
 			# be creative
-			getattr(cls, 'register', classes)[name] = cls
+			getattr(self, 'register', classes)[name] = self
 
 evil = store_task_type('evil', (object,), {})
 "Base class provided to avoid writing a metaclass, so the code can run in python 2.6 and 3.x unmodified"
@@ -291,7 +288,7 @@ class Task(evil):
 		#. stderr: set to None to prevent waf from capturing the process standard error
 		#. timeout: timeout value (Python 3)
 		"""
-		if not 'cwd' in kw:
+		if 'cwd' not in kw:
 			kw['cwd'] = self.get_cwd()
 
 		if hasattr(self, 'timeout'):
@@ -309,7 +306,7 @@ class Task(evil):
 		if not isinstance(cmd, str):
 			if Utils.is_win32:
 				# win32 compares the resulting length http://support.microsoft.com/kb/830473
-				too_long = sum([len(arg) for arg in cmd]) + len(cmd) > 8192
+				too_long = sum(len(arg) for arg in cmd) + len(cmd) > 8192
 			else:
 				# non-win32 counts the amount of arguments (200k)
 				too_long = len(cmd) > 200000
@@ -323,7 +320,7 @@ class Task(evil):
 					os.close(fd)
 					if Logs.verbose:
 						Logs.debug('argfile: @%r -> %r', tmp, args)
-					return self.generator.bld.exec_command(cmd + ['@' + tmp], **kw)
+					return self.generator.bld.exec_command(cmd + [f'@{tmp}'], **kw)
 				finally:
 					try:
 						os.remove(tmp)
@@ -378,13 +375,8 @@ class Task(evil):
 		if self.generator.bld.progress_bar == 3:
 			return
 
-		s = self.display()
-		if s:
-			if bld.logger:
-				logger = bld.logger
-			else:
-				logger = Logs
-
+		if s := self.display():
+			logger = bld.logger or Logs
 			if self.generator.bld.progress_bar == 1:
 				c1 = Logs.colors.cursor_off
 				c2 = Logs.colors.cursor_on
@@ -489,27 +481,22 @@ class Task(evil):
 		if not tmp:
 			return []
 
-		if isinstance(var2, str):
-			it = self.env[var2]
-		else:
-			it = var2
+		it = self.env[var2] if isinstance(var2, str) else var2
 		if isinstance(tmp, str):
 			return [tmp % x for x in it]
-		else:
-			lst = []
-			for y in it:
-				lst.extend(tmp)
-				lst.append(y)
-			return lst
+		lst = []
+		for y in it:
+			lst.extend(tmp)
+			lst.append(y)
+		return lst
 
 	def __str__(self):
 		"string to display to the user"
 		name = self.__class__.__name__
-		if self.outputs:
-			if name.endswith(('lib', 'program')) or not self.inputs:
-				node = self.outputs[0]
-				return node.path_from(node.ctx.launch_node())
-		if not (self.inputs or self.outputs):
+		if self.outputs and (name.endswith(('lib', 'program')) or not self.inputs):
+			node = self.outputs[0]
+			return node.path_from(node.ctx.launch_node())
+		if not self.inputs:
 			return self.__class__.__name__
 		if len(self.inputs) == 1:
 			node = self.inputs[0]
@@ -517,11 +504,8 @@ class Task(evil):
 
 		src_str = ' '.join([a.path_from(a.ctx.launch_node()) for a in self.inputs])
 		tgt_str = ' '.join([a.path_from(a.ctx.launch_node()) for a in self.outputs])
-		if self.outputs:
-			sep = ' -> '
-		else:
-			sep = ''
-		return '%s: %s%s%s' % (self.__class__.__name__, src_str, sep, tgt_str)
+		sep = ' -> ' if self.outputs else ''
+		return f'{self.__class__.__name__}: {src_str}{sep}{tgt_str}'
 
 	def keyword(self):
 		"Display keyword used to prettify the console outputs"
@@ -531,10 +515,7 @@ class Task(evil):
 		if len(self.inputs) == 1 and len(self.outputs) == 1:
 			return 'Compiling'
 		if not self.inputs:
-			if self.outputs:
-				return 'Creating'
-			else:
-				return 'Running'
+			return 'Creating' if self.outputs else 'Running'
 		return 'Processing'
 
 	def __repr__(self):
@@ -823,10 +804,7 @@ class Task(evil):
 
 		# get the task signatures from previous runs
 		key = self.uid()
-		prev = bld.imp_sigs.get(key, [])
-
-		# for issue #379
-		if prev:
+		if prev := bld.imp_sigs.get(key, []):
 			try:
 				if prev == self.compute_sig_implicit_deps():
 					return prev
@@ -988,10 +966,7 @@ class TaskGroup(object):
 		self.done = False
 
 	def get_hasrun(self):
-		for k in self.prev:
-			if not k.hasrun:
-				return NOT_RUN
-		return SUCCESS
+		return next((NOT_RUN for k in self.prev if not k.hasrun), SUCCESS)
 
 	hasrun = property(get_hasrun, None)
 
@@ -1256,8 +1231,7 @@ def compile_fun(line, shell=False):
 				funs_lst.append(x)
 		def composed_fun(task):
 			for x in funs_lst:
-				ret = x(task)
-				if ret:
+				if ret := x(task):
 					return ret
 			return None
 		return composed_fun, dvars_lst
@@ -1288,11 +1262,9 @@ def compile_sig_vars(vars):
 	:return: A sig_vars method relevant for dependencies if adequate, else None
 	:rtype: A function, or None in most cases
 	"""
-	buf = []
-	for x in sorted(vars):
-		if x[:3] in ('tsk', 'gen', 'bld'):
-			buf.append('buf.append(%s)' % x)
-	if buf:
+	if buf := [
+	    f'buf.append({x})' for x in sorted(vars) if x[:3] in ('tsk', 'gen', 'bld')
+	]:
 		return funex(COMPILE_TEMPLATE_SIG_VARS % '\n\t'.join(buf))
 	return None
 
@@ -1321,7 +1293,7 @@ def task_factory(name, func=None, vars=None, color='GREEN', ext_in=[], ext_out=[
 		'scan': scan,
 	}
 
-	if isinstance(func, str) or isinstance(func, tuple):
+	if isinstance(func, (str, tuple)):
 		params['run_str'] = func
 	else:
 		params['run'] = func

@@ -24,12 +24,12 @@ if sys.version_info[0] == 2:
     import urllib
     import urlparse
 
-    location = urlparse.urljoin("file:", urllib.pathname2url(path) + "/")
+    location = urlparse.urljoin("file:", f"{urllib.pathname2url(path)}/")
 else:
     from urllib.parse import urljoin
     from urllib.request import pathname2url
 
-    location = urljoin("file:", pathname2url(path) + "/")
+    location = urljoin("file:", f"{pathname2url(path)}/")
 
 
 class NodeTests(unittest.TestCase):
@@ -416,9 +416,7 @@ class UITests(unittest.TestCase):
         self.assertEqual(uis[0], str(ui_uri))
         self.assertEqual(uis[0].get_uri(), ui_uri)
         self.assertEqual(uis[0].get_bundle_uri(), self.bundle_uri)
-        self.assertEqual(
-            uis[0].get_binary_uri(), str(self.bundle_uri) + "TODO"
-        )
+        self.assertEqual(uis[0].get_binary_uri(), f"{str(self.bundle_uri)}TODO")
         self.assertEqual(uis[uis[0].get_uri()], uis[0])
         self.assertTrue(uis[0].is_a(self.world.ns.ui.GtkUI))
         self.assertTrue(uis[0] in uis)

@@ -43,9 +43,9 @@ def options(opt):
 	def x(opt, param):
 		dest = name_to_dest(param)
 		gr = opt.get_option_group("configure options")
-		gr.add_option('--%s-root' % dest,
-		 help="path containing include and lib subfolders for %s" \
-		  % param,
+		gr.add_option(
+		    f'--{dest}-root',
+		    help=f"path containing include and lib subfolders for {param}",
 		)
 
 	opt.add_package_option = functools.partial(x, opt)
@@ -74,8 +74,7 @@ def check_cfg(conf, *k, **kw):
 			assert os.path.isdir(path)
 		except AssertionError:
 			raise Errors.ConfigurationError(
-				"%s_%s (%s) is not a folder!" \
-				% (package_lo, name, path))
+			    f"{package_lo}_{name} ({path}) is not a folder!")
 		return path
 
 	root = getattr(Options.options, '%s_root' % package_lo, None)
@@ -84,9 +83,9 @@ def check_cfg(conf, *k, **kw):
 		return check_cfg_old(conf, **kw)
 	else:
 		def add_manual_var(k, v):
-			conf.start_msg('Adding for %s a manual var' % (package))
-			conf.env["%s_%s" % (k, package_hi)] = v
-			conf.end_msg("%s = %s" % (k, v))
+			conf.start_msg(f'Adding for {package} a manual var')
+			conf.env[f"{k}_{package_hi}"] = v
+			conf.end_msg(f"{k} = {v}")
 
 
 		check_folder(root, 'root')

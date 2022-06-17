@@ -52,12 +52,11 @@ class PriorityTasks(object):
 		if self.lst:
 			for x in lst:
 				self.append(x)
+		elif isinstance(lst, list):
+			self.lst = lst
+			heapq.heapify(lst)
 		else:
-			if isinstance(lst, list):
-				self.lst = lst
-				heapq.heapify(lst)
-			else:
-				self.lst = lst.lst
+			self.lst = lst.lst
 
 class Consumer(Utils.threading.Thread):
 	"""
@@ -196,9 +195,7 @@ class Parallel(object):
 
 		:rtype: :py:class:`waflib.Task.Task`
 		"""
-		if not self.outstanding:
-			return None
-		return self.outstanding.pop()
+		return self.outstanding.pop() if self.outstanding else None
 
 	def postpone(self, tsk):
 		"""
@@ -240,7 +237,8 @@ class Parallel(object):
 							lst.append('%s\t-> %r' % (repr(tsk), deps))
 							if not deps:
 								lst.append('\n  task %r dependencies are done, check its *runnable_status*?' % id(tsk))
-						raise Errors.WafError('Deadlock detected: check the task build order%s' % ''.join(lst))
+						raise Errors.WafError(
+						    f"Deadlock detected: check the task build order{''.join(lst)}")
 				self.deadlock = self.processed
 
 			if self.postponed:
@@ -283,10 +281,8 @@ class Parallel(object):
 			more = set(tsk.more_tasks)
 			groups_done = set()
 			def iteri(a, b):
-				for x in a:
-					yield x
-				for x in b:
-					yield x
+				yield from a
+				yield from b
 
 			# Update the dependency tree
 			# this assumes that task.run_after values were updated
@@ -449,9 +445,8 @@ class Parallel(object):
 					if Logs.verbose > 1 or not self.error:
 						self.error.append(tsk)
 					self.stop = True
-				else:
-					if Logs.verbose > 1:
-						self.error.append(tsk)
+				elif Logs.verbose > 1:
+					self.error.append(tsk)
 				return Task.EXCEPTION
 
 			tsk.hasrun = Task.EXCEPTION

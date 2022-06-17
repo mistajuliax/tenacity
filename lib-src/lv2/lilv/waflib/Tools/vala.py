@@ -114,10 +114,7 @@ def init_vala_task(self):
 		api_version = '1.0'
 		if hasattr(Context.g_module, 'API_VERSION'):
 			version = Context.g_module.API_VERSION.split(".")
-			if version[0] == "0":
-				api_version = "0." + version[1]
-			else:
-				api_version = version[0] + ".0"
+			api_version = f"0.{version[1]}" if version[0] == "0" else f"{version[0]}.0"
 		return api_version
 
 	self.includes = Utils.to_list(getattr(self, 'includes', []))
@@ -276,7 +273,7 @@ def find_valac(self, valac_name, min_version):
 		valac_version = None
 	else:
 		ver = re.search(r'\d+.\d+.\d+', output).group().split('.')
-		valac_version = tuple([int(x) for x in ver])
+		valac_version = tuple(int(x) for x in ver)
 
 	self.msg('Checking for %s version >= %r' % (valac_name, min_version),
 	         valac_version, valac_version and valac_version >= min_version)

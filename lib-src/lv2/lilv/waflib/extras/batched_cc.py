@@ -65,12 +65,10 @@ class batch(Task.Task):
 			if not t.hasrun:
 				return Task.ASK_LATER
 
-		for t in self.slaves:
-			#if t.executed:
-			if t.hasrun != Task.SKIPPED:
-				return Task.RUN_ME
-
-		return Task.SKIP_ME
+		return next(
+		    (Task.RUN_ME for t in self.slaves if t.hasrun != Task.SKIPPED),
+		    Task.SKIP_ME,
+		)
 
 	def get_cwd(self):
 		return self.slaves[0].outputs[0].parent

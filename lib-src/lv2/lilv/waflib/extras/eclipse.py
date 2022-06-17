@@ -13,6 +13,7 @@ def options(opt):
 $ waf configure eclipse
 """
 
+
 import sys, os
 from waflib import Utils, Logs, Context, Build, TaskGen, Scripting, Errors, Node
 from xml.dom.minidom import Document
@@ -20,9 +21,9 @@ from xml.dom.minidom import Document
 STANDARD_INCLUDES = [ '/usr/local/include', '/usr/include' ]
 
 oe_cdt = 'org.eclipse.cdt'
-cdt_mk = oe_cdt + '.make.core'
-cdt_core = oe_cdt + '.core'
-cdt_bld = oe_cdt + '.build.core'
+cdt_mk = f'{oe_cdt}.make.core'
+cdt_core = f'{oe_cdt}.core'
+cdt_bld = f'{oe_cdt}.build.core'
 extbuilder_dir = '.externalToolBuilders'
 extbuilder_name = 'Waf_Builder.launch'
 
@@ -62,18 +63,14 @@ class eclipse(Build.BuildContext):
 		javalibpath = []
 		includes = STANDARD_INCLUDES
 		if sys.platform != 'win32':
-			cc = self.env.CC or self.env.CXX
-			if cc:
+			if cc := self.env.CC or self.env.CXX:
 				cmd = cc + ['-xc++', '-E', '-Wp,-v', '-']
 				try:
 					gccout = self.cmd_and_log(cmd, output=Context.STDERR, quiet=Context.BOTH, input='\n'.encode()).splitlines()
 				except Errors.WafError:
 					pass
 				else:
-					includes = []
-					for ipath in gccout:
-						if ipath.startswith(' /'):
-							includes.append(ipath[1:])
+					includes = [ipath[1:] for ipath in gccout if ipath.startswith(' /')]
 			cpppath += includes
 		Logs.warn('Generating Eclipse CDT project files')
 
@@ -99,23 +96,21 @@ class eclipse(Build.BuildContext):
 				# This may also contain generated files (ie. protoc) that get picked from build
 				if 'javac' in tg.features:
 					java_src = tg.path.relpath()
-					java_srcdir = getattr(tg.javac_task, 'srcdir', None)
-					if java_srcdir:
+					if java_srcdir := getattr(tg.javac_task, 'srcdir', None):
 						if isinstance(java_srcdir, Node.Node):
 							java_srcdir = [java_srcdir]
 						for x in Utils.to_list(java_srcdir):
 							x = x.path_from(self.root.make_node(self.top_dir))
 							if x not in javasrcpath:
 								javasrcpath.append(x)
-					else:
-						if java_src not in javasrcpath:
-							javasrcpath.append(java_src)
+					elif java_src not in javasrcpath:
+						javasrcpath.append(java_src)
 					hasjava = True
 
 					# Check if there are external dependencies and add them as external jar so they will be resolved by Eclipse
 					usedlibs=getattr(tg, 'use', [])
 					for x in Utils.to_list(usedlibs):
-						for cl in Utils.to_list(tg.env['CLASSPATH_'+x]):
+						for cl in Utils.to_list(tg.env[f'CLASSPATH_{x}']):
 							if cl not in javalibpath:
 								javalibpath.append(cl)
 
@@ -170,20 +165,21 @@ class eclipse(Build.BuildContext):
 
 		# If CDT is present, instruct this one to call waf as it is more flexible (separate build/clean ...)
 		if hasc:
-			self.add(doc, buildCommand, 'name', oe_cdt + '.managedbuilder.core.genmakebuilder')
+			self.add(doc, buildCommand, 'name',
+			         f'{oe_cdt}.managedbuilder.core.genmakebuilder')
 			# the default make-style targets are overwritten by the .cproject values
 			dictionaries = {
-					cdt_mk + '.contents': cdt_mk + '.activeConfigSettings',
-					cdt_mk + '.enableAutoBuild': 'false',
-					cdt_mk + '.enableCleanBuild': 'true',
-					cdt_mk + '.enableFullBuild': 'true',
-					}
+			    f'{cdt_mk}.contents': f'{cdt_mk}.activeConfigSettings',
+			    f'{cdt_mk}.enableAutoBuild': 'false',
+			    f'{cdt_mk}.enableCleanBuild': 'true',
+			    f'{cdt_mk}.enableFullBuild': 'true',
+			}
 		else:
 			# Otherwise for Java/Python an external builder tool is created that will call waf build
 			self.add(doc, buildCommand, 'name', 'org.eclipse.ui.externaltools.ExternalToolBuilder')
 			dictionaries = {
-					'LaunchConfigHandle': '<project>/%s/%s'%(extbuilder_dir, extbuilder_name),
-					}
+			    'LaunchConfigHandle': f'<project>/{extbuilder_dir}/{extbuilder_name}'
+			}
 			# The definition is in a separate directory XML file
 			try:
 				os.mkdir(extbuilder_dir)
@@ -202,7 +198,8 @@ class eclipse(Build.BuildContext):
 			self.add(doc, launchConfiguration, 'stringAttribute', {'key': 'org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY', 'value': '${project_loc}'})
 			builder.appendChild(launchConfiguration)
 			# And write the XML to the file references before
-			self.write_conf_to_xml('%s%s%s'%(extbuilder_dir, os.path.sep, extbuilder_name), builder)
+			self.write_conf_to_xml(f'{extbuilder_dir}{os.path.sep}{extbuilder_name}',
+			                       builder)
 
 
 		for k, v in dictionaries.items():
@@ -218,7 +215,7 @@ class eclipse(Build.BuildContext):
 				core.cnature
 			""".split()
 			for n in nature_list:
-				self.add(doc, natures, 'nature', oe_cdt + '.' + n)
+				self.add(doc, natures, 'nature', f'{oe_cdt}.{n}')
 
 		if haspython:
 			self.add(doc, natures, 'nature', 'org.python.pydev.pythonNature')
@@ -362,9 +359,7 @@ class eclipse(Build.BuildContext):
 		prop.setAttribute('name', 'org.python.pydev.PYTHON_PROJECT_VERSION')
 		prop = self.add(doc, pydevproject, 'pydev_property', 'Default')
 		prop.setAttribute('name', 'org.python.pydev.PYTHON_PROJECT_INTERPRETER')
-		# add waf's paths
-		wafadmin = [p for p in system_path if p.find('wafadmin') != -1]
-		if wafadmin:
+		if wafadmin := [p for p in system_path if p.find('wafadmin') != -1]:
 			prop = self.add(doc, pydevproject, 'pydev_pathproperty',
 					{'name':'org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH'})
 			for i in wafadmin:
@@ -404,10 +399,16 @@ class eclipse(Build.BuildContext):
 		return dictionary
 
 	def addTarget(self, doc, buildTargets, executable, name, buildTarget, runAllBuilders=True):
-		target = self.add(doc, buildTargets, 'target',
-						{'name': name,
-						 'path': '',
-						 'targetID': oe_cdt + '.build.MakeTargetBuilder'})
+		target = self.add(
+		    doc,
+		    buildTargets,
+		    'target',
+		    {
+		        'name': name,
+		        'path': '',
+		        'targetID': f'{oe_cdt}.build.MakeTargetBuilder',
+		    },
+		)
 		self.add(doc, target, 'buildCommand', executable)
 		self.add(doc, target, 'buildArguments', None)
 		self.add(doc, target, 'buildTarget', buildTarget)

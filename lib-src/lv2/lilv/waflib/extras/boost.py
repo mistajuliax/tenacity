@@ -162,16 +162,14 @@ def options(opt):
 def __boost_get_version_file(self, d):
 	if not d:
 		return None
-	dnode = self.root.find_dir(d)
-	if dnode:
+	if dnode := self.root.find_dir(d):
 		return dnode.find_node(BOOST_VERSION_FILE)
 	return None
 
 @conf
 def boost_get_version(self, d):
 	"""silently retrieve the boost version number"""
-	node = self.__boost_get_version_file(d)
-	if node:
+	if node := self.__boost_get_version_file(d):
 		try:
 			txt = node.read()
 		except EnvironmentError:
@@ -182,7 +180,7 @@ def boost_get_version(self, d):
 			re_but2 = re.compile('^#define\\s+BOOST_VERSION\\s+(\\d+)', re.M)
 			m2 = re_but2.search(txt)
 			if m1 and m2:
-				return (m1.group(1), m2.group(1))
+				return m1[1], m2[1]
 	return self.check_cxx(fragment=BOOST_VERSION_CODE, includes=[d], execute=True, define_ret=True).split(":")
 
 @conf
@@ -194,11 +192,11 @@ def boost_get_includes(self, *k, **kw):
 		if self.__boost_get_version_file(d):
 			return d
 	if includes:
-		self.end_msg('headers not found in %s' % includes)
-		self.fatal('The configuration failed')
+		self.end_msg(f'headers not found in {includes}')
 	else:
 		self.end_msg('headers not found, please provide a --boost-includes argument (see help)')
-		self.fatal('The configuration failed')
+
+	self.fatal('The configuration failed')
 
 
 @conf
@@ -206,10 +204,7 @@ def boost_get_toolset(self, cc):
 	toolset = cc
 	if not cc:
 		build_platform = Utils.unversioned_sys_platform()
-		if build_platform in BOOST_TOOLSETS:
-			cc = build_platform
-		else:
-			cc = self.env.CXX_NAME
+		cc = build_platform if build_platform in BOOST_TOOLSETS else self.env.CXX_NAME
 	if cc in BOOST_TOOLSETS:
 		toolset = BOOST_TOOLSETS[cc]
 	return isinstance(toolset, str) and toolset or toolset(self.env)
@@ -233,19 +228,17 @@ def __boost_get_libs_path(self, *k, **kw):
 				files = path.ant_glob('*boost_*')
 				if files:
 					break
-			path = self.root.find_dir(d + '64')
+			path = self.root.find_dir(f'{d}64')
 			if path:
 				files = path.ant_glob('*boost_*')
 				if files:
 					break
 	if not path:
 		if libs:
-			self.end_msg('libs not found in %s' % libs)
-			self.fatal('The configuration failed')
+			self.end_msg(f'libs not found in {libs}')
 		else:
 			self.end_msg('libs not found, please provide a --boost-libs argument (see help)')
-			self.fatal('The configuration failed')
-
+		self.fatal('The configuration failed')
 	self.to_log('Found the boost path in %r with the libraries:' % path)
 	for x in files:
 		self.to_log('    %r' % x)
@@ -266,7 +259,7 @@ def boost_get_libs(self, *k, **kw):
 	def find_lib(re_lib, files):
 		for file in files:
 			if re_lib.search(file.name):
-				self.to_log('Found boost lib %s' % file)
+				self.to_log(f'Found boost lib {file}')
 				return file
 		return None
 
@@ -284,7 +277,7 @@ def boost_get_libs(self, *k, **kw):
 		if kw.get('mt', False):
 			t.append('-mt')
 		if kw.get('abi'):
-			t.append('%s%s' % (is_static and '-s' or '-', kw['abi']))
+			t.append(f"{is_static and '-s' or '-'}{kw['abi']}")
 		elif is_static:
 			t.append('-s')
 		tags_pat = t and ''.join(t) or ''
@@ -300,20 +293,13 @@ def boost_get_libs(self, *k, **kw):
 			else:
 				tags = tags_pat
 			# Trying libraries, from most strict match to least one
-			for pattern in ['boost_%s%s%s%s%s$' % (lib, toolset_pat, tags, version, ext),
-							'boost_%s%s%s%s$' % (lib, tags, version, ext),
-							# Give up trying to find the right version
-							'boost_%s%s%s%s$' % (lib, toolset_pat, tags, ext),
-							'boost_%s%s%s$' % (lib, tags, ext),
-							'boost_%s%s$' % (lib, ext),
-							'boost_%s' % lib]:
-				self.to_log('Trying pattern %s' % pattern)
-				file = find_lib(re.compile(pattern), files)
-				if file:
+			for pattern in [f'boost_{lib}{toolset_pat}{tags}{version}{ext}$', f'boost_{lib}{tags}{version}{ext}$', f'boost_{lib}{toolset_pat}{tags}{ext}$', f'boost_{lib}{tags}{ext}$', f'boost_{lib}{ext}$', f'boost_{lib}']:
+				self.to_log(f'Trying pattern {pattern}')
+				if file := find_lib(re.compile(pattern), files):
 					libs.append(format_lib_name(file.name))
 					break
 			else:
-				self.end_msg('lib %s not found in %s' % (lib, path.abspath()))
+				self.end_msg(f'lib {lib} not found in {path.abspath()}')
 				self.fatal('The configuration failed')
 		return libs
 
@@ -370,8 +356,8 @@ def _check_pthread_flag(self, *k, **kw):
 	for boost_pthread_flag in boost_pthread_flags:
 		try:
 			self.env.stash()
-			self.env.append_value('CXXFLAGS_%s' % var, boost_pthread_flag)
-			self.env.append_value('LINKFLAGS_%s' % var, boost_pthread_flag)
+			self.env.append_value(f'CXXFLAGS_{var}', boost_pthread_flag)
+			self.env.append_value(f'LINKFLAGS_{var}', boost_pthread_flag)
 			self.check_cxx(code=PTHREAD_CODE, msg=None, use=var, execute=False)
 
 			self.end_msg(boost_pthread_flag)
@@ -452,9 +438,9 @@ def check_boost(self, *k, **kw):
 			self.check_cxx(fragment=BOOST_THREAD_CODE, use=var, execute=False)
 		if has_lib('log'):
 			if not has_lib('thread'):
-				self.env['DEFINES_%s' % var] += ['BOOST_LOG_NO_THREADS']
+				self.env[f'DEFINES_{var}'] += ['BOOST_LOG_NO_THREADS']
 			if has_shlib('log'):
-				self.env['DEFINES_%s' % var] += ['BOOST_LOG_DYN_LINK']
+				self.env[f'DEFINES_{var}'] += ['BOOST_LOG_DYN_LINK']
 			self.check_cxx(fragment=BOOST_LOG_CODE, use=var, execute=False)
 
 	if params.get('linkage_autodetect', False):

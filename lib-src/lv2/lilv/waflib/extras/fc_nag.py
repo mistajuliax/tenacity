@@ -29,8 +29,7 @@ def nag_flags(conf):
 @conf
 def nag_modifier_platform(conf):
 	dest_os = conf.env['DEST_OS'] or Utils.unversioned_sys_platform()
-	nag_modifier_func = getattr(conf, 'nag_modifier_' + dest_os, None)
-	if nag_modifier_func:
+	if nag_modifier_func := getattr(conf, f'nag_modifier_{dest_os}', None):
 		nag_modifier_func()
 
 @conf
@@ -41,11 +40,7 @@ def get_nag_version(conf, fc):
 	cmd = fc + ['-V']
 
 	out, err = fc_config.getoutput(conf,cmd,stdin=False)
-	if out:
-		match = version_re(out)
-		if not match:
-			match = version_re(err)
-	else: match = version_re(err)
+	match = version_re(out) or version_re(err) if out else version_re(err)
 	if not match:
 		conf.fatal('Could not determine the NAG version.')
 	k = match.groupdict()

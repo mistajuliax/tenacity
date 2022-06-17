@@ -47,8 +47,8 @@ class run_halide_gen(Task.Task):
 	run_str = "${SRC[0].abspath()} ${HALIDE_ARGS}"
 	def __str__(self):
 		stuff = "halide"
-		stuff += ("[%s]" % (",".join(
-		 ('%s=%s' % (k,v)) for k, v in sorted(self.env.env.items()))))
+		stuff += "[%s]" % ",".join(f'{k}={v}'
+		                           for k, v in sorted(self.env.env.items()))
 		return Task.Task.__str__(self).replace(self.__class__.__name__,
 		 stuff)
 
@@ -92,11 +92,8 @@ def halide(self):
 		if xpos == -1:
 			xpos = len(src.name)
 		newname = name[:xpos] + ext
-		if src.is_child_of(bld.bldnode):
-			node = src.get_src().parent.find_or_declare(newname)
-		else:
-			node = bld.bldnode.find_or_declare(newname)
-		return node
+		return (src.get_src().parent.find_or_declare(newname) if src.is_child_of(
+		    bld.bldnode) else bld.bldnode.find_or_declare(newname))
 
 	def to_nodes(self, lst, path=None):
 		tmp = []
@@ -107,10 +104,7 @@ def halide(self):
 			lst = [lst]
 
 		for x in Utils.to_list(lst):
-			if isinstance(x, str):
-				node = find(x)
-			else:
-				node = x
+			node = find(x) if isinstance(x, str) else x
 			tmp.append(node)
 		return tmp
 

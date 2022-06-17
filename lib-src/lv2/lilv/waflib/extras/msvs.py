@@ -389,9 +389,8 @@ Node.Node.stealth_write = stealth_write
 re_win32 = re.compile(r'^([/\\]cygdrive)?[/\\]([a-z])([^a-z0-9_-].*)', re.I)
 def win32path(self):
 	p = self.abspath()
-	m = re_win32.match(p)
-	if m:
-		return "%s:%s" % (m.group(2).upper(), m.group(3))
+	if m := re_win32.match(p):
+		return f"{m.group(2).upper()}:{m.group(3)}"
 	return p
 Node.Node.win32path = win32path
 
@@ -407,14 +406,13 @@ def make_uuid(v, prefix = None):
 	simple utility function
 	"""
 	if isinstance(v, dict):
-		keys = list(v.keys())
-		keys.sort()
+		keys = sorted(v.keys())
 		tmp = str([(k, v[k]) for k in keys])
 	else:
 		tmp = str(v)
 	d = Utils.md5(tmp.encode()).hexdigest().upper()
 	if prefix:
-		d = '%s%s' % (prefix, d[8:])
+		d = f'{prefix}{d[8:]}'
 	gid = uuid.UUID(d, version = 4)
 	return str(gid).upper()
 
@@ -446,8 +444,7 @@ def diff(node, fromnode):
 		c1 = c1.parent
 		c2 = c2.parent
 
-	for i in range(up):
-		lst.append('(..)')
+	lst.extend('(..)' for _ in range(up))
 	lst.reverse()
 	return tuple(lst)
 
@@ -550,7 +547,7 @@ class vsnode_project(vsnode):
 		template2 = compile_template(FILTER_TEMPLATE)
 		filter_str = template2(self)
 		filter_str = rm_blank_lines(filter_str)
-		tmp = self.path.parent.make_node(self.path.name + '.filters')
+		tmp = self.path.parent.make_node(f'{self.path.name}.filters')
 		tmp.stealth_write(filter_str)
 
 	def get_key(self, node):
@@ -583,7 +580,7 @@ class vsnode_project(vsnode):
 		self.build_properties = ret
 
 	def get_build_params(self, props):
-		opt = '--execsolution=%s' % self.ctx.get_solution_node().win32path()
+		opt = f'--execsolution={self.ctx.get_solution_node().win32path()}'
 		return (self.get_waf(), opt)
 
 	def get_build_command(self, props):
@@ -681,9 +678,9 @@ class vsnode_target(vsnode_project):
 		"""
 		Override the default to add the target name
 		"""
-		opt = '--execsolution=%s' % self.ctx.get_solution_node().win32path()
+		opt = f'--execsolution={self.ctx.get_solution_node().win32path()}'
 		if getattr(self, 'tg', None):
-			opt += " --targets=%s" % self.tg.name
+			opt += f" --targets={self.tg.name}"
 		return (self.get_waf(), opt)
 
 	def collect_source(self):
@@ -695,7 +692,7 @@ class vsnode_target(vsnode_project):
 			if isinstance(x, str):
 				x = tg.path.find_node(x)
 			if x:
-				lst = [y for y in x.ant_glob(HEADERS_GLOB, flat=False)]
+				lst = list(x.ant_glob(HEADERS_GLOB, flat=False))
 				include_files.extend(lst)
 
 		# remove duplicates
@@ -834,8 +831,7 @@ class msvs_generator(BuildContext):
 		"""
 		ret = []
 		for c in self.configurations:
-			for p in self.platforms:
-				ret.append((c, p))
+			ret.extend((c, p) for p in self.platforms)
 		return ret
 
 	def collect_targets(self):
@@ -865,23 +861,27 @@ class msvs_generator(BuildContext):
 		"""
 		base = getattr(self, 'projects_dir', None) or self.tg.path
 
-		node_project = base.make_node('build_all_projects' + self.project_extension) # Node
+		node_project = base.make_node(f'build_all_projects{self.project_extension}')
 		p_build = self.vsnode_build_all(self, node_project)
 		p_build.collect_properties()
 		self.all_projects.append(p_build)
 
-		node_project = base.make_node('install_all_projects' + self.project_extension) # Node
+		node_project = base.make_node(f'install_all_projects{self.project_extension}')
 		p_install = self.vsnode_install_all(self, node_project)
 		p_install.collect_properties()
 		self.all_projects.append(p_install)
 
-		node_project = base.make_node('project_view' + self.project_extension) # Node
+		node_project = base.make_node(f'project_view{self.project_extension}')
 		p_view = self.vsnode_project_view(self, node_project)
 		p_view.collect_source()
 		p_view.collect_properties()
 		self.all_projects.append(p_view)
 
-		n = self.vsnode_vsdir(self, make_uuid(self.srcnode.win32path() + 'build_aliases'), "build_aliases")
+		n = self.vsnode_vsdir(
+		    self,
+		    make_uuid(f'{self.srcnode.win32path()}build_aliases'),
+		    "build_aliases",
+		)
 		p_build.parent = p_install.parent = p_view.parent = n
 		self.all_projects.append(n)
 
@@ -955,13 +955,14 @@ def wrap_2008(cls):
 				par.source.append(x)
 
 			def display(n):
-				buf = []
-				for x in n.source:
-					buf.append('<File RelativePath="%s" FileType="%s"/>\n' % (xml_escape(x.win32path()), self.get_key(x)))
+				buf = [
+				    '<File RelativePath="%s" FileType="%s"/>\n' % (xml_escape(x.win32path()),
+				                                                   self.get_key(x))
+				    for x in n.source
+				]
 				for x in n.subfilters:
-					buf.append('<Filter Name="%s">' % xml_escape(x.name))
-					buf.append(display(x))
-					buf.append('</Filter>')
+					buf.extend(('<Filter Name="%s">' % xml_escape(x.name), display(x),
+					            '</Filter>'))
 				return '\n'.join(buf)
 
 			return display(root)

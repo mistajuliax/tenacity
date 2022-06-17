@@ -35,16 +35,16 @@ class WavFile(object):
         raw_bytes = self.wav_in.readframes(self.nframes)
         struct_fmt = "%u%s" % (len(raw_bytes) / self.sampwidth, self.struct_fmt_code)
         data = wave.struct.unpack(struct_fmt, raw_bytes)
-        if self.signed:
-            data = [i / float(self.range/2) for i in data]
-        else:
-            data = [(i - float(range/2)) / float(range/2) for i in data]
+        data = (
+            [i / float(self.range / 2) for i in data]
+            if self.signed
+            else [(i - float(range / 2)) / float(range / 2) for i in data]
+        )
 
-        channels = []
-        for i in range(self.nchannels):
-            channels.append([data[j] for j in range(0, len(data), self.nchannels) ])
-
-        return channels
+        return [
+            [data[j] for j in range(0, len(data), self.nchannels)]
+            for _ in range(self.nchannels)
+        ]
 
     def close(self):
         self.wav_in.close()

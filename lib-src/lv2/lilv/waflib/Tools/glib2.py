@@ -62,27 +62,16 @@ class glib_genmarshal(Task.Task):
 		bld = self.generator.bld
 
 		get = self.env.get_flat
-		cmd1 = "%s %s --prefix=%s --header > %s" % (
-			get('GLIB_GENMARSHAL'),
-			self.inputs[0].srcpath(),
-			get('GLIB_GENMARSHAL_PREFIX'),
-			self.outputs[0].abspath()
-		)
+		cmd1 = f"{get('GLIB_GENMARSHAL')} {self.inputs[0].srcpath()} --prefix={get('GLIB_GENMARSHAL_PREFIX')} --header > {self.outputs[0].abspath()}"
 
-		ret = bld.exec_command(cmd1)
-		if ret:
+		if ret := bld.exec_command(cmd1):
 			return ret
 
 		#print self.outputs[1].abspath()
 		c = '''#include "%s"\n''' % self.outputs[0].name
 		self.outputs[1].write(c)
 
-		cmd2 = "%s %s --prefix=%s --body >> %s" % (
-			get('GLIB_GENMARSHAL'),
-			self.inputs[0].srcpath(),
-			get('GLIB_GENMARSHAL_PREFIX'),
-			self.outputs[1].abspath()
-		)
+		cmd2 = f"{get('GLIB_GENMARSHAL')} {self.inputs[0].srcpath()} --prefix={get('GLIB_GENMARSHAL_PREFIX')} --body >> {self.outputs[1].abspath()}"
 		return bld.exec_command(cmd2)
 
 ########################## glib-mkenums
@@ -157,6 +146,14 @@ def process_enums(self):
 	"""
 	Processes the enum files stored in the attribute *enum_list* to create :py:class:`waflib.Tools.glib2.glib_mkenums` instances.
 	"""
+	params = {'file-head' : '--fhead',
+	           'file-prod' : '--fprod',
+	           'file-tail' : '--ftail',
+	           'enum-prod' : '--eprod',
+	           'value-head' : '--vhead',
+	           'value-prod' : '--vprod',
+	           'value-tail' : '--vtail',
+	           'comments': '--comments'}
 	for enum in getattr(self, 'enums_list', []):
 		task = self.create_task('glib_mkenums')
 		env = task.env
@@ -166,14 +163,14 @@ def process_enums(self):
 		# process the source
 		source_list = self.to_list(enum['source'])
 		if not source_list:
-			raise Errors.WafError('missing source ' + str(enum))
+			raise Errors.WafError(f'missing source {str(enum)}')
 		source_list = [self.path.find_resource(k) for k in source_list]
 		inputs += source_list
 		env.GLIB_MKENUMS_SOURCE = [k.abspath() for k in source_list]
 
 		# find the target
 		if not enum['target']:
-			raise Errors.WafError('missing target ' + str(enum))
+			raise Errors.WafError(f'missing target {str(enum)}')
 		tgt_node = self.path.find_or_declare(enum['target'])
 		if tgt_node.name.endswith('.c'):
 			self.source.append(tgt_node)
@@ -184,20 +181,10 @@ def process_enums(self):
 
 		if enum['template']: # template, if provided
 			template_node = self.path.find_resource(enum['template'])
-			options.append('--template %s' % (template_node.abspath()))
+			options.append(f'--template {template_node.abspath()}')
 			inputs.append(template_node)
-		params = {'file-head' : '--fhead',
-		           'file-prod' : '--fprod',
-		           'file-tail' : '--ftail',
-		           'enum-prod' : '--eprod',
-		           'value-head' : '--vhead',
-		           'value-prod' : '--vprod',
-		           'value-tail' : '--vtail',
-		           'comments': '--comments'}
-		for param, option in params.items():
-			if enum[param]:
-				options.append('%s %r' % (option, enum[param]))
-
+		options.extend('%s %r' % (option, enum[param])
+		               for param, option in params.items() if enum[param])
 		env.GLIB_MKENUMS_OPTIONS = ' '.join(options)
 
 		# update the task instance
@@ -306,9 +293,8 @@ def process_settings(self):
 		if not bld.is_install:
 			return
 		compile_schemas = Utils.to_list(bld.env.GLIB_COMPILE_SCHEMAS)
-		destdir = Options.options.destdir
 		paths = bld._compile_schemas_registered
-		if destdir:
+		if destdir := Options.options.destdir:
 			paths = (os.path.join(destdir, path.lstrip(os.sep)) for path in paths)
 		for path in paths:
 			Logs.pprint('YELLOW', 'Updating GSettings schema cache %r' % path)
@@ -374,8 +360,7 @@ def process_gresource_bundle(self):
 		node = self.path.find_resource(i)
 
 		task = self.create_task('glib_gresource_bundle', node, node.change_ext(''))
-		inst_to = getattr(self, 'install_path', None)
-		if inst_to:
+		if inst_to := getattr(self, 'install_path', None):
 			self.add_install_files(install_to=inst_to, install_from=task.outputs)
 
 class glib_gresource_base(Task.Task):
@@ -390,10 +375,7 @@ class glib_gresource_base(Task.Task):
 		Scans gresource dependencies through ``glib-compile-resources --generate-dependencies command``
 		"""
 		bld = self.generator.bld
-		kw = {}
-		kw['cwd'] = self.get_cwd()
-		kw['quiet'] = Context.BOTH
-
+		kw = {'cwd': self.get_cwd(), 'quiet': Context.BOTH}
 		cmd = Utils.subst_vars('${GLIB_COMPILE_RESOURCES} --sourcedir=%s --sourcedir=%s --generate-dependencies %s' % (
 			self.inputs[0].parent.srcpath(),
 			self.inputs[0].bld_dir(),
@@ -406,8 +388,7 @@ class glib_gresource_base(Task.Task):
 		names = []
 		for dep in output.splitlines():
 			if dep:
-				node = bld.bldnode.find_node(dep)
-				if node:
+				if node := bld.bldnode.find_node(dep):
 					nodes.append(node)
 				else:
 					names.append(dep)
